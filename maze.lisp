@@ -62,10 +62,7 @@
 
 ;;
 (defun solve-maze (maze start-room-idx test)
-  (let*
-      (
-       ;; Index of the branch we now take
-       (curr-branch 0)
+  (let* ((curr-branch 0) ; Index of the branch we now take
        ;; States stack. This assoc list holds
        ;; states, composed of both current room number
        ;; and current door index.
@@ -86,7 +83,7 @@
                ;; A valid next room
                ;; Move to it and push it on the moves stack
                (next-room
-                (pprint (list "move to" next-room))
+                (format t "~&~vt~a~%" (length moves-stack) next-room)
                 (push (cons next-room next-branch) moves-stack)
                 ;; Start over branching
                 (setf curr-branch 0))
@@ -99,5 +96,5 @@
                ;; move back - pop current state form stack
                ;; and start from next branch after previously taken
                (t (setf curr-branch (1+ (cdr (pop moves-stack))))
-                  (pprint (list "back to" curr-room)))))
-         finally (return (values (nreverse (mapcar #'car moves-stack))))))))
+                  (format t "~&~vt~a~%" (1- (length moves-stack)) curr-room))))
+         finally (return (nreverse (mapcar #'car moves-stack)))))))

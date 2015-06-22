@@ -1,11 +1,8 @@
 ;;
 (defparameter *labirynth*
-  '((1 . 5) (5 . 9) (9 . 13) (13 . 14) (14 . 15) (14 . 10)
-    (10 . 6) (6 . 2) (2 . 3) (3 . 4) (4 . 8) (8 . 12)
-    (12 . 11) (11 . 7) (12 . 16)))
-
-;;
-(defvar *maze* nil)
+  '((1 . 5) (5 . 9) (9 . 13) (13 . 14) (14 . 15)
+    (14 . 10) (10 . 6) (6 . 2) (2 . 3) (3 . 4)
+    (4 . 8) (8 . 12) (12 . 11) (11 . 7) (12 . 16)))
 
 ;;
 (defun single (lst)
@@ -18,23 +15,20 @@
 ;; A macro that facilitates maze creation
 ;;
 (defun add-route(from to maze)
-  (multiple-value-bind (neighbours found) (gethash from maze)
-    (if found
-        (push to (gethash from maze))
-        (setf (gethash from maze) (list to)))))
+  (setf (gethash from maze) (cons to (gethash from maze))))
 
 (defmacro room-not-visited-p (room-idx moves-stack)
   `(not (assoc ,room-idx ,moves-stack)))
 
-;; Create a maze
+;; Create a maze given the labirynth.
 ;; A labirynth is an assoc list, with each cons of which
-;; describing a way from one maze room to another.
+;; describing the way from one maze room to another.
 ;; So a maze like this:
 ;; *---*
 ;; |1|2|
 ;; |3 4|
 ;; *---*
-;; is described by this list:
+;; has a corresponding labirynth (assoc list) given below:
 ;; ((1 . 3) (3 . 4) (4 . 2))
 ;; A maze, on the other hand, is a hash table, whose key is a room index
 ;; and value is a list of rooms directly connected to it.
@@ -91,7 +85,7 @@
                ;; - bail out
                ((single moves-stack)
                 (pprint (list "Unsolved" moves-stack))
-                (return-from nil (values nil nil)))
+                (return-from nil nil))
                ;; Dead corner with a backtrack,
                ;; move back - pop current state form stack
                ;; and start from next branch after previously taken

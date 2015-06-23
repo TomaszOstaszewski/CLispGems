@@ -43,10 +43,19 @@
 
 ;;(declaim (optimize (speed 3) (safety 0)))
 
-;;; A function that creates a new state with given parameters
+;; A winning state is the one when we have
+;; no missionaries, no cannibals nad no boat
+;; on the left side.
 (defparameter *winning-state* `(:missionaries 0 :cannibals 0 :has-boat nil))
 
-;;; a list of valid moves from right to left side of the river
+;; A list of valid moves.
+;; We have 2 types of moves;
+;; - with boat on the left side;
+;;   In that case, only valid moves are to take 2 missionaries,
+;;   a missionary and a cannibal or just a missionary form the left side.
+;; - without boat on the left side;
+;;   Just like above, but we take from the right side.
+;; 
 (defparameter *valid-moves*
   `(:without-boat ((:missionaries 1 :cannibals 1)
                    (:missionaries 1 :cannibals 0)
@@ -55,18 +64,19 @@
                  (:missionaries -1 :cannibals 0)
                  (:missionaries -2 :cannibals 0))))
 
-(defparameter *moves-limit* (1- (length *valid-moves-r-to-l*)))
-
+;; A function that compares 2 states
 (defun states-equal-p (lhs-state rhs-state)
   (and (equal (getf lhs-state :missionaries) (getf rhs-state :missionaries))
        (equal (getf lhs-state :cannibals) (getf rhs-state :cannibals))
        (equal (getf lhs-state :has-boat) (getf rhs-state :has-boat))))
 
+;; A function that checks if a given state is the end state
 (defun winning-state-p (a-state)
   (states-equal-p *winning-state* a-state))
 
 (declaim (inline visited-state-p))
 (declaim (inline valid-state-p))
+(declaim (inline winning-state-p))
 
 ;;; Check if a given state is valid
 ;;; A state is valid if it does not violate

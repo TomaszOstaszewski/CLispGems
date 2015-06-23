@@ -19,7 +19,7 @@
 ;;;; The last key, :branch-idx, represents how did we get to this state, i.e. which move, among
 ;;;; 3 possible moves from left to right, and 3 possible moves from right to left, got us where we are.
 ;;;;
-;;;; For instance, a states stack like below:
+;;;; For instance, a state stack like below:
 ;;;;   ((:missionaries 2 :cannibals 1 :has-boat nil :branch-idx 2) (:missionaries 3 :cannibals 2 :has-boat t :branch-idx 0))
 ;;;; represents a situation when we had 3 missionaries and 2 cannibals on the left side,
 ;;;; and then we have 2 missionaries and 1 cannibal on the left side, with 1 missionary and 1 cannibal
@@ -30,54 +30,37 @@
 ;;;;
 ;;;; The program is structured so that the easiest parts go first, then a bit harder ones, finally the hardest part.
 ;;;; Saying 'hardest' is a great overstatement. This is still simple backtracking, so really this is no hard.
-;;;; Everywhere I tried to maintain this functional fasion - no hidden variables, limit use of 'setf'.
-;;;; This indeed make things simpler to develop and test.
-;;;; So the main function backtracking function is 'find-next-move'. It receives current states stack, and searches
-;;;; for next possible move.n
-;;;; If it does find a next possible move, it adds it to the front of states stack and returns new states stack.
+;;;; I tried to maintain a functional fashion - no hidden variables, limit use of 'setf'.
+;;;; This indeed makes things simpler to develop and test.
+;;;; So the main backtracking function is 'find-next-move'. It receives current states stack, and searches
+;;;; for a next possible move.
+;;;; If it finds one, it will add it to the front of states stack and returns new states stack.
 ;;;; Otherwise, it returns a modified states stack, with last state removed, and this new last state has
 ;;;; its :branch-idx argument increased, so that next time we look for a solution, we do not enter this dead alley again.
 
 ;;;; 
-(in-package :org.ostaszewski.tomasz.missionaries)
+;(in-package :org.ostaszewski.tomasz.missionaries)
 
-(declaim (optimize (speed 3) (safety 0)))
+;;(declaim (optimize (speed 3) (safety 0)))
 
 ;;; A function that creates a new state with given parameters
-(defun new-state (&key missionaries cannibals has-boat (branch-idx 0))
-  (declare (fixnum missionaries cannibals branch-idx))
-  (list :missionaries missionaries :cannibals cannibals :has-boat has-boat :branch-idx branch-idx))
-
-(defparameter *winning-state* (new-state :missionaries 0 :cannibals 0 :has-boat nil))
-
-(defun make-move (&key missionaries cannibals)
-  (declare (fixnum missionaries cannibals))
-  (list :missionaries missionaries :cannibals cannibals))
-
-(defun negate-move (a-move)
-  (make-move
-   :missionaries (- 0 (the fixnum (getf a-move :missionaries)))
-   :cannibals (- 0 (the fixnum (getf a-move :cannibals)))))
+(defparameter *winning-state* `(:missionaries 0 :cannibals 0 :has-boat nil))
 
 ;;; a list of valid moves from right to left side of the river
-(defparameter *valid-moves-r-to-l* (list
-                                    (make-move :missionaries 1 :cannibals 1)
-                                    (make-move :missionaries 1 :cannibals 0)
-                                    (make-move :missionaries 2 :cannibals 0)
-                                    ))
-
-;;; a list of valid moves from left to right side of the river
-(defparameter *valid-moves-l-to-r* (list
-                                    (negate-move (nth 0 *valid-moves-r-to-l*))
-                                    (negate-move (nth 1 *valid-moves-r-to-l*))
-                                    (negate-move (nth 2 *valid-moves-r-to-l*))))
+(defparameter *valid-moves*
+  `(:without-boat ((:missionaries 1 :cannibals 1)
+                   (:missionaries 1 :cannibals 0)
+                   (:missionaries 2 :cannibals 0))
+     :with-boat ((:missionaries -1 :cannibals -1)
+                 (:missionaries -1 :cannibals 0)
+                 (:missionaries -2 :cannibals 0))))
 
 (defparameter *moves-limit* (1- (length *valid-moves-r-to-l*)))
 
 (defun states-equal-p (lhs-state rhs-state)
-  (and (equal (the fixnum (getf lhs-state :missionaries)) (the fixnum (getf rhs-state :missionaries)))
-       (equal (the fixnum (getf lhs-state :cannibals))    (the fixnum (getf rhs-state :cannibals)))
-       (equal (the fixnum (getf lhs-state :has-boat))     (the fixnum (getf rhs-state :has-boat)))))
+  (and (equal (getf lhs-state :missionaries) (getf rhs-state :missionaries))
+       (equal (getf lhs-state :cannibals) (getf rhs-state :cannibals))
+       (equal (getf lhs-state :has-boat) (getf rhs-state :has-boat))))
 
 (defun winning-state-p (a-state)
   (states-equal-p *winning-state* a-state))
@@ -105,23 +88,22 @@
 
 ;;; Check if a given state have already been visited
 (defun visited-state-p (state states-stack)
-  (declare (cons states-stack))
   (find-if #'(lambda(s) (states-equal-p s state)) states-stack))
 
 ;;; Returns next possible state
 ;;; given current state and one of the
 ;;; possible moves.
 (defun get-next-state (m c state-stack move-idx)
-  (declare (fixnum move-idx))
-  (let ((current-state (first state-stack)))
-    (let ((move (nth move-idx *valid-moves-r-to-l*)))
-      (when (getf current-state :has-boat)
-        (setf move (nth move-idx *valid-moves-l-to-r*)))
-      (if move
-          (let* ((missionaries (+ (the fixnum (getf current-state :missionaries)) (the fixnum (getf move :missionaries))))
-                 (cannibals (+ (the fixnum (getf current-state :cannibals)) (the fixnum (getf move :cannibals))))
-                 (has-boat (not (getf current-state :has-boat)))
-                 (next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat)))
+  (let* ((current-state (first state-stack))
+         (move (nth move-idx
+                    (if (getf current-state :has-boat)
+                        (getf *valid-moves* :with-boat)
+                        (getf *valid-moves* :without-boat)))))
+    (if move
+        (let ((missionaries (+ (getf current-state :missionaries) (getf move :missionaries)))
+              (cannibals (+ (getf current-state :cannibals) (getf move :cannibals)))
+              (has-boat (not (getf current-state :has-boat))))
+          (let ((next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat)))
             (and (valid-state-p m c next-state) (not (visited-state-p next-state state-stack)) next-state))))))
 
 ;;; Finds a valid next state for given current state
@@ -137,7 +119,7 @@
     (let ((current-state (first states-stack)))
       (when current-state
         (loop
-           for move-idx from (the fixnum (getf current-state :branch-idx)) to *moves-limit*
+           for move-idx from (getf current-state :branch-idx) to (length (getf *valid-moves* :with-boat))
            for next-state = (get-next-state m c states-stack move-idx) then (get-next-state m c states-stack move-idx)
            when next-state return (values next-state move-idx))))))
 
@@ -150,17 +132,17 @@
     (cond
       ;; No next state
       ;; In that case, return a state stack with last state removed
-      ;; After all, from this state we didn't get anywhere.
-      ;; Then increase the branch index of this new last state.
-      ;; This is done in order for the next try to take another route
-      ;; and not to fall into the same pitfall.
-      ((null next-state)
-       (let ((backtrack (rest states-stack)))
-         (when backtrack
-           (incf (the fixnum (getf (first backtrack) :branch-idx))))
-         backtrack))
+      ;; as this last state did lead us to a dead end.
+      ;; But before doint so, increase the branch index of a predecessor of the last state.
+      ;; This is done in order to try another route next time we search
+      ;; for a valid move.
+      ((null next-state) (let ((backtrack (rest states-stack)))
+                           (when backtrack
+                             (incf (getf (first backtrack) :branch-idx)))
+                           backtrack))
       ;; Found a next state
-      ;; IN this case set the branch index to the 
+      ;; In that case set the branch index to the
+      ;; index of a branch taken and return new states stack
       (t (setf (getf (first states-stack) :branch-idx) idx)
          (cons next-state states-stack)))))
 

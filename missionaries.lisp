@@ -74,6 +74,9 @@
 (defun winning-state-p (a-state)
   (states-equal-p *winning-state* a-state))
 
+(defmacro new-state (&rest rest)
+  `(list :branch-idx 0 ,@rest))
+
 (declaim (inline visited-state-p))
 (declaim (inline valid-state-p))
 (declaim (inline winning-state-p))
@@ -113,7 +116,7 @@
         (let ((missionaries (+ (getf current-state :missionaries) (getf move :missionaries)))
               (cannibals (+ (getf current-state :cannibals) (getf move :cannibals)))
               (has-boat (not (getf current-state :has-boat))))
-          (let ((next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat)))
+          (let ((next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat :branch-idx 0)))
             (and (valid-state-p m c next-state) (not (visited-state-p next-state state-stack)) next-state))))))
 
 ;;; Finds a valid next state for given current state
@@ -129,7 +132,7 @@
     (let ((current-state (first states-stack)))
       (when current-state
         (loop
-           for move-idx from (getf current-state :branch-idx) to (length (getf *valid-moves* :with-boat))
+           for move-idx from (getf current-state :branch-idx) to (1- (length (getf *valid-moves* :with-boat)))
            for next-state = (get-next-state m c states-stack move-idx) then (get-next-state m c states-stack move-idx)
            when next-state return (values next-state move-idx))))))
 

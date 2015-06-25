@@ -48,6 +48,9 @@
 ;; on the left side.
 (defparameter *winning-state* `(:missionaries 0 :cannibals 0 :has-boat nil))
 
+(defvar *m*)
+(defvar *c*)
+
 ;; A list of valid moves.
 ;; We have 2 types of moves;
 ;; - with boat on the left side;
@@ -75,7 +78,7 @@
   (states-equal-p *winning-state* a-state))
 
 (defmacro new-state (&rest rest)
-  `(list :branch-idx 0 ,@rest))
+  `(list ,@rest :branch-idx 0))
 
 (declaim (inline visited-state-p))
 (declaim (inline valid-state-p))
@@ -106,7 +109,7 @@
 ;;; Returns next possible state
 ;;; given current state and one of the
 ;;; possible moves.
-(defun get-next-state (m c state-stack move-idx)
+(defun get-next-state (state-stack move-idx)
   (let* ((current-state (first state-stack))
          (move (nth move-idx
                     (if (getf current-state :has-boat)
@@ -116,8 +119,8 @@
         (let ((missionaries (+ (getf current-state :missionaries) (getf move :missionaries)))
               (cannibals (+ (getf current-state :cannibals) (getf move :cannibals)))
               (has-boat (not (getf current-state :has-boat))))
-          (let ((next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat :branch-idx 0)))
-            (and (valid-state-p m c next-state) (not (visited-state-p next-state state-stack)) next-state))))))
+          (let ((next-state (new-state :missionaries missionaries :cannibals cannibals :has-boat has-boat)))
+            (and (valid-state-p *m* *c* next-state) (not (visited-state-p next-state state-stack)) next-state))))))
 
 ;;; Finds a valid next state for given current state
 ;;; and starting branch position.
@@ -127,21 +130,21 @@
 ;;; and second is the index of the move taken.
 ;;; If not found, returns 2 values, first nil, second is the size
 ;;; of the moves list.
-(defun find-next-state (m c states-stack)
+(defun find-next-state (states-stack)
   (unless (or (null states-stack) (winning-state-p (first states-stack)))
     (let ((current-state (first states-stack)))
       (when current-state
         (loop
            for move-idx from (getf current-state :branch-idx) to (1- (length (getf *valid-moves* :with-boat)))
-           for next-state = (get-next-state m c states-stack move-idx) then (get-next-state m c states-stack move-idx)
+           for next-state = (get-next-state states-stack move-idx) then (get-next-state states-stack move-idx)
            when next-state return (values next-state move-idx))))))
 
 ;;; This returns a new states stack given current one
 ;;; First 2 parameters are initial number of missionaries and cannibals
 ;;; on the left side of the river.
-(defun solve-next-move (m c states-stack)
+(defun solve-next-move (states-stack)
   (multiple-value-bind (next-state idx)
-      (find-next-state m c states-stack)
+      (find-next-state states-stack)
     (cond
       ;; No next state
       ;; In that case, return a state stack with last state removed
@@ -162,9 +165,11 @@
 ;;; Puzzle solver
 ;;; Returns a list, each element of which is a sequence of moves that lead to a solution.
 (defun solve-puzzle (m c)
-  (let ((solutions))
-    (do ((s-s (list (new-state :missionaries m :cannibals c :has-boat t)) (solve-next-move m c s-s)))
-        ((or (not s-s)) nil)
-      (when (winning-state-p (first s-s))
-        (push (nreverse (copy-tree s-s)) solutions)))
-    (nreverse solutions)))
+  (let ((*m* m)
+        (*c* c))
+    (let ((solutions))
+      (loop for s-s = (list (new-state :missionaries m :cannibals c :has-boat t))
+         then (solve-next-move s-s)
+         until (null s-s)
+         when (winning-state-p (car s-s)) do (push (nreverse (copy-tree s-s)) solutions))
+      (nreverse solutions))))

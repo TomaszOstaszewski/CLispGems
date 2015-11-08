@@ -40,6 +40,20 @@
     ((member? set2 (car set1)) t)
     (t (member? (cdr set1) set2))))
 
+(defun subset? (set1 set2)
+  (cond
+    ((null set1) t)
+    (t (and (member? set2 (car set1)) (subset? (cdr set1) set2)))))
+
+(defun eqset? (set1 set2)
+  (and (subset? set1 set2) (subset? set2 set1)))
+
+(defun intersetc? (set1 set2)
+  (cond
+    ((null set1) nil)
+    ((member? set2 (car set1)) t)
+    (t (intersect? (cdr set1) set2))))
+
 (defun intersect (set1 set2)
   (cond
     ((null set1) nil)
@@ -51,9 +65,8 @@
 (defun set-union (set1 set2)
   (cond
     ((null set1) set2)
-    ((member? set2 (car set1))
-     (union (cdr set1) set2))
-    (t (cons (car set1) set2))))
+    ((member? set2 (car set1)) (union (cdr set1) set2))
+    (t (cons (car set1) (set-union (cdr set1) set2)))))
 
 (defun my-set-difference (set1 set2)
   (cond

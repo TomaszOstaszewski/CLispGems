@@ -75,4 +75,29 @@
      (my-set-difference (cdr set1) set2))
     (t (cons (car set1) (my-set-difference (cdr set1) set2)))))
 
+(defun multirember (an-atom list-of-atoms)
+  (cond
+    ((null list-of-atoms) nil)
+    ((eql an-atom (car list-of-atoms)) (multirember an-atom (cdr list-of-atoms)))
+    (t (cons (car list-of-atoms) (multirember an-atom (cdr list-of-atoms))))))
+
+(defun multirember-f (a-test)
+  (lambda (an-atom list-of-atoms)
+    (cond
+      ((null list-of-atoms) nil)
+      ((funcall a-test an-atom (car list-of-atoms))
+       (funcall (multirember-f a-test) an-atom (cdr list-of-atoms)))
+      (t (cons (car list-of-atoms) (funcall (multirember-f a-test) an-atom (cdr list-of-atoms)))))))
+
+(defun multirember-2-f (a-test)
+  (labels ((rec (an-atom list-of-atoms)
+             (cond
+               ((null list-of-atoms) nil)
+               ((funcall a-test an-atom (car list-of-atoms))
+                (rec an-atom (cdr list-of-atoms)))
+               (t (cons (car list-of-atoms) (rec an-atom (cdr list-of-atoms)))))))
+    #'rec))
+
+(defun even? (x)
+  (eql 0 (mod x 2)))
 

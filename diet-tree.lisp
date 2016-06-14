@@ -144,7 +144,7 @@
          ;; advance to a left subtree
          ((< a-val bottom)
           (make-s-diet-node :bottom bottom :top top :left (diet-remove a-val left) :right right))
-          ;; Higher than a top boundary
+         ;; Higher than a top boundary
          ;; advance to a right subtree
          ((> a-val top)
           (make-s-diet-node :bottom bottom :top top :left left :right (diet-remove a-val right)))
@@ -168,11 +168,14 @@
                                 :left (make-s-diet-node :bottom bottom :top (1- a-val) :left left :right nil)))))))))
 
 (defun diet-height (a-tree)
-  (if (null a-tree)
-      0
-      (+ 1
-         (diet-height (s-diet-node-right a-tree))
-         (diet-height (s-diet-node-left a-tree)))))
+  (cond
+    ((null a-tree) 0)
+    ((and (null (s-diet-node-right a-tree)) (null (s-diet-node-left a-tree))) 0)
+    ((null (s-diet-node-left a-tree)) (1+ (diet-height (s-diet-node-right a-tree))))
+    ((null (s-diet-node-right a-tree)) (1+ (diet-height (s-diet-node-left a-tree))))
+    (t 
+     (1+ (max (diet-height (s-diet-node-right a-tree))
+               (diet-height (s-diet-node-left a-tree)))))))
 
 (defun diet-balance (a-tree)
   (cond
@@ -181,12 +184,11 @@
     (t (- (diet-height (s-diet-node-right a-tree))
           (diet-height (s-diet-node-left a-tree))))))
 
-
 (defun diet-max-interval (a-tree)
   (cond
     ((null a-tree) 0)
     ((and (null (s-diet-node-left a-tree)) (null (s-diet-node-right a-tree)))
-         (1+ (- (s-diet-node-top a-tree) (s-diet-node-bottom a-tree))))
+     (1+ (- (s-diet-node-top a-tree) (s-diet-node-bottom a-tree))))
     ((null (s-diet-node-left a-tree))
      (max (1+ (- (s-diet-node-top a-tree) (s-diet-node-bottom a-tree)))
           (diet-max-interval (s-diet-node-right a-tree))))
@@ -198,3 +200,40 @@
           (diet-max-interval (s-diet-node-right a-tree))))))
 
 
+(defun diet-r-rotate (a-tree)
+  (if (null a-tree)
+      nil
+      (let ((l (s-diet-node-left a-tree))
+            (r (s-diet-node-right a-tree)))
+        (if (or (null l) (null r))
+            a-tree
+            (let ((ll (s-diet-node-left l))
+                  (lr (s-diet-node-right l)))
+              (make-s-diet-node :bottom (s-diet-node-bottom l) :top (s-diet-node-top l)
+                                :left ll
+                                :right (make-s-diet-node :bottom (s-diet-node-bottom a-tree) :top (s-diet-node-top a-tree)
+                                                         :left lr :right r)))))))
+
+(defun diet-l-rotate (a-tree)
+  (if (null a-tree)
+      nil
+      (let ((l (s-diet-node-left a-tree))
+            (r (s-diet-node-right a-tree)))
+        (if (or (null l) (null r))
+            a-tree
+            (let ((rl (s-diet-node-left r))
+                  (rr (s-diet-node-right r)))
+              (make-s-diet-node :bottom (s-diet-node-bottom r) :top (s-diet-node-top r)
+                                :left (make-s-diet-node :bottom (s-diet-node-bottom a-tree) :top (s-diet-node-top a-tree)
+                                                        :left l :right rl)
+                                :right rr))))))
+
+(defun diet-count-intervals (a-tree)
+  (cond
+    ((null a-tree) 0)
+    ((and (null (s-diet-node-left a-tree))
+          (null (s-diet-node-right a-tree))) 1)
+    (t
+     (+ 1
+        (diet-count-intervals (s-diet-node-left a-tree))
+        (diet-count-intervals (s-diet-node-right a-tree))))))

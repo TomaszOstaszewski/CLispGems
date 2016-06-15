@@ -42,68 +42,39 @@
                              :left tree-w/o-min-interval))))))
 
 (defun join-left (a-diet-node)
-  (let ((left-subtree (s-diet-node-left a-diet-node)))
-    (if (null left-subtree)
+  (with-slots (top bottom left right) a-diet-node
+    (if (null left)
         a-diet-node
-        (multiple-value-bind (bottom top tree-w/o-max-interval)
-            (split-max left-subtree)
-          (if (eql (1+ top) (s-diet-node-bottom a-diet-node))
-              (make-s-diet-node :bottom bottom
-                                :top (s-diet-node-top a-diet-node)
-                                :left tree-w/o-max-interval
-                                :right (s-diet-node-right a-diet-node))
-              (make-s-diet-node :bottom (s-diet-node-bottom a-diet-node)
-                                :top (s-diet-node-top a-diet-node)
-                                :left left-subtree
-                                :right (s-diet-node-right a-diet-node)))))))
+        (multiple-value-bind (max-int-bottom max-int-top l-subtree-w/o-max-interval)
+            (split-max left)
+          (if (eql (1+ max-int-top) bottom)
+              (make-s-diet-node :bottom max-int-bottom :top top :left l-subtree-w/o-max-interval :right right)
+              (make-s-diet-node :bottom bottom :top top :left left :right right))))))
 
 (defun join-right (a-diet-node)
-  (let ((right-subtree (s-diet-node-right a-diet-node)))
-    (if (null right-subtree)
+  (with-slots (top bottom left right) a-diet-node
+    (if (null right)
         a-diet-node
-        (multiple-value-bind (bottom top tree-w/o-max-interval)
-            (split-min right-subtree)
-          (if (eql (1+ (s-diet-node-top a-diet-node)) bottom)
-              (make-s-diet-node :bottom (s-diet-node-bottom a-diet-node)
-                                :top bottom
-                                :left (s-diet-node-left a-diet-node)
-                                :right tree-w/o-max-interval)
-              (make-s-diet-node :bottom (s-diet-node-bottom a-diet-node)
-                                :top (s-diet-node-top a-diet-node)
-                                :left (s-diet-node-left a-diet-node)
-                                :right (s-diet-node-right a-diet-node)))))))
+        (multiple-value-bind (min-int-bottom min-int-top r-subtree-w/o-min-interval)
+            (split-min right)
+          (if (eql (1+ top) min-int-bottom)
+              (make-s-diet-node :bottom bottom :top min-int-top :left left :right r-subtree-w/o-min-interval)
+              (make-s-diet-node :bottom bottom :top top :left left :right right))))))
 
 (defun diet-insert (value a-diet-node)
-  (cond
-    ((null a-diet-node) (make-s-diet-node :bottom value
-                                          :top value
-                                          :left nil
-                                          :right nil))
-    ((< value (s-diet-node-bottom a-diet-node))
-     (if (eql (1+ value) (s-diet-node-bottom a-diet-node))
-         (join-left (make-s-diet-node
-                     :bottom value
-                     :top (s-diet-node-top a-diet-node)
-                     :left (s-diet-node-left a-diet-node)
-                     :right (s-diet-node-right a-diet-node)))
-         (make-s-diet-node
-          :bottom (s-diet-node-bottom a-diet-node)
-          :top (s-diet-node-top a-diet-node)
-          :left (diet-insert value (s-diet-node-left a-diet-node))
-          :right (s-diet-node-right a-diet-node))))
-    ((> value (s-diet-node-top a-diet-node))
-     (if (eql value (1+ (s-diet-node-top a-diet-node)))
-         (join-right (make-s-diet-node
-                      :bottom (s-diet-node-bottom a-diet-node)
-                      :top value
-                      :left (s-diet-node-left a-diet-node)
-                      :right (s-diet-node-right a-diet-node)))
-         (make-s-diet-node
-          :bottom (s-diet-node-bottom a-diet-node)
-          :top (s-diet-node-top a-diet-node)
-          :left (s-diet-node-left a-diet-node)
-          :right (diet-insert value (s-diet-node-right a-diet-node)))))
-    (t a-diet-node)))
+  (if (null a-diet-node)
+      (make-s-diet-node :bottom value :top value :left nil :right nil)
+      (with-slots (bottom top left right) a-diet-node
+        (cond
+          ((< value bottom)
+           (if (eql (1+ value) bottom)
+               (join-left (make-s-diet-node :bottom value :top top :left left :right right))
+               (make-s-diet-node :bottom bottom :top top :left (diet-insert value left) :right right)))
+          ((> value top)
+           (if (eql value (1+ top))
+               (join-right (make-s-diet-node :bottom bottom :top value :left left :right right))
+               (make-s-diet-node :bottom bottom :top top :left left :right (diet-insert value right))))
+          (t a-diet-node)))))
 
 (defun diet-merge (a-tree)
   (with-slots (left right) a-tree
@@ -122,12 +93,8 @@
     ;; Empty tree - trivial
     ((null a-tree) nil)
     (t
-     (let ((bottom (s-diet-node-bottom a-tree))
-           (top (s-diet-node-top a-tree))
-           (left (s-diet-node-left a-tree))
-           (right (s-diet-node-right a-tree)))
-       (assert (and (not (null bottom))
-                    (not (null top))))
+     (with-slots (bottom top left right) a-tree
+       (assert (and (not (null bottom)) (not (null top))))
        (cond
          ;; Lower than a bottom boundary
          ;; advance to a left subtree
@@ -174,7 +141,7 @@
     (t (- (diet-height (s-diet-node-right a-tree))
           (diet-height (s-diet-node-left a-tree))))))
 
-(defun diet-max-interval (a-tree)
+(defun diet-longest-interval (a-tree)
   (if (null a-tree)
       (values 0 nil)
       (with-slots (bottom top left right) a-tree

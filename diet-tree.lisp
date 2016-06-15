@@ -6,20 +6,15 @@
 ;; - top boundary of a rightmost leaf
 ;; - a subtree without a rightmost most leaf
 (defun split-max (a-diet-node)
-  (cond
-    ((null a-diet-node) (values nil nil nil))
-    ((null (s-diet-node-right a-diet-node))
-     (values
-      (s-diet-node-bottom a-diet-node)
-      (s-diet-node-top a-diet-node)
-      (s-diet-node-left a-diet-node)))
-    (t (multiple-value-bind (bottom top rest)
-           (split-max (s-diet-node-right a-diet-node))
-         (values bottom top (make-s-diet-node
-                             :bottom (s-diet-node-bottom a-diet-node)
-                             :top (s-diet-node-top a-diet-node)
-                             :right rest
-                             :left (s-diet-node-left a-diet-node)))))))
+  (if (null a-diet-node)
+      (values nil nil nil)
+      (with-slots (bottom top left right) a-diet-node
+        (if (null right)
+            (values bottom top left)
+            (multiple-value-bind (max-bottom max-top subtree-w/o-max) (split-max right)
+              (values max-bottom max-top
+                      (make-s-diet-node :bottom bottom :top top :left left :right subtree-w/o-max)))))))
+
 ;; Go to the left subtree
 ;; Returns the following values:
 ;; - bottom boundary of a leftmost leaf

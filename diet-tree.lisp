@@ -1,6 +1,8 @@
 (defstruct s-diet-node bottom top left right)
 
-;; Go to the right subtree
+;; Go right until you hit a node without a right offspring.
+;; When this happens, return node values and a tree that leads
+;; to this node, w/o this very node.
 ;; Returns the following values:
 ;; - bottom boundary of a rightmost leaf
 ;; - top boundary of a rightmost leaf
@@ -36,7 +38,7 @@
                              :right (s-diet-node-right a-diet-node)
                              :left tree-w/o-min-interval))))))
 
-(defun join-left (a-diet-node)
+(defun join-left-2 (a-diet-node)
   (with-slots (top bottom left right) a-diet-node
     (if (null left)
         a-diet-node
@@ -46,7 +48,8 @@
               (make-s-diet-node :bottom max-int-bottom :top top :left l-subtree-w/o-max-interval :right right)
               (make-s-diet-node :bottom bottom :top top :left left :right right))))))
 
-(defun join-right (a-diet-node)
+
+(defun join-right-2 (a-diet-node)
   (with-slots (top bottom left right) a-diet-node
     (if (null right)
         a-diet-node
@@ -55,6 +58,50 @@
           (if (eql (1+ top) min-int-bottom)
               (make-s-diet-node :bottom bottom :top min-int-top :left left :right r-subtree-w/o-min-interval)
               (make-s-diet-node :bottom bottom :top top :left left :right right))))))
+
+(defun split-max-col (a-diet-node col)
+  (if (null a-diet-node)
+      (funcall col nil nil nil)
+      (with-slots (bottom top left right) a-diet-node
+        (if (null right)
+            (funcall col bottom top left)
+            (split-max-col right
+                           #'(lambda (new-bottom new-top new-tree)
+                               (funcall col new-bottom new-top (make-s-diet-node :bottom bottom :top top
+                                                                                 :left left :right new-tree))))))))
+
+(defun split-min-col (a-diet-node col)
+  (if (null a-diet-node)
+      (funcall col nil nil nil)
+      (with-slots (bottom top left right) a-diet-node
+        (if (null left)
+            (funcall col bottom top right)
+            (split-min-col left
+                           #'(lambda(new-bottom new-top new-tree)
+                               (funcall col new-bottom new-top (make-s-diet-node :bottom bottom
+                                                                                 :top top
+                                                                                 :left new-tree
+                                                                                 :right right))))))))
+(defun join-left (a-diet-node)
+  (with-slots (top bottom left right) a-diet-node
+    (if (null left)
+        a-diet-node
+        (split-max-col left
+                       #'(lambda (max-int-bottom max-int-top l-subtree-w/o-max-interval)
+                           (if (eql (1+ max-int-top) bottom)
+                               (make-s-diet-node :bottom max-int-bottom :top top :left l-subtree-w/o-max-interval :right right)
+                               (make-s-diet-node :bottom bottom :top top :left left :right right)))))))
+
+
+(defun join-right (a-diet-node)
+  (with-slots (top bottom left right) a-diet-node
+    (if (null right)
+        a-diet-node
+        (split-min-col right
+                       #'(lambda (min-int-bottom min-int-top r-subtree-w/o-min-interval)
+                           (if (eql (1+ top) min-int-bottom)
+                               (make-s-diet-node :bottom bottom :top min-int-top :left left :right r-subtree-w/o-min-interval)
+                               (make-s-diet-node :bottom bottom :top top :left left :right right)))))))
 
 (defun diet-insert (value a-diet-node)
   (if (null a-diet-node)
@@ -100,15 +147,14 @@
          ((> a-val top)
           (make-s-diet-node :bottom bottom :top top :left left :right (diet-remove a-val right)))
          ;; a-val belongs to the interval [bottom; top].
-         ;; Is it a single value interval?
+         ;; Is it a single value interval? If so, then merge.
          ((eql bottom top) (diet-merge a-tree))
-         ;; Do we remove a bottom part?
+         ;; Do we shrink from the bottom? Return a new node with bottom element removed.
          ((eql a-val bottom) (make-s-diet-node :bottom (1+ bottom) :top top :left left :right right))
-         ;; Do we remova a top part?
+         ;; Do we shrink from the top? Return a new node with top element removed.
          ((eql a-val top) (make-s-diet-node :bottom bottom :top (1- top) :left left :right right))
-         ;; Neither a single value interval
-         ;; nor we shrank either bottom or top
-         ;; Need to split into 2 new nodes.
+         ;; Do we remove a somewhere in between?
+         ;; Need to split into two new nodes.
          ;; We chose the split pattern in a random fashion
          ;;
          (t
@@ -143,19 +189,19 @@
         (let ((curr-interval (1+ (- top bottom))))
           (cond
             ((and (null left) (null right)) (values curr-interval a-tree))
-            ((null left) (multiple-value-bind (max-subtree-interval node) (diet-max-interval right)
+            ((null left) (multiple-value-bind (max-subtree-interval node) (diet-longest-interval right)
                            (if (> max-subtree-interval curr-interval)
                                (values max-subtree-interval node)
                                (values curr-interval a-tree))))
-            ((null right) (multiple-value-bind (max-subtree-interval node) (diet-max-interval left)
-                             (if (> max-subtree-interval curr-interval)
-                                 (values max-subtree-interval node)
-                                 (values curr-interval a-tree))))
+            ((null right) (multiple-value-bind (max-subtree-interval node) (diet-longest-interval left)
+                            (if (> max-subtree-interval curr-interval)
+                                (values max-subtree-interval node)
+                                (values curr-interval a-tree))))
             (t
              (multiple-value-bind (max-left-int max-left-node)
-                 (diet-max-interval left)
+                 (diet-longest-interval left)
                (multiple-value-bind (max-right-int max-right-node)
-                   (diet-max-interval right)
+                   (diet-longest-interval right)
                  (if (> max-left-int max-right-int)
                      (values max-left-int max-left-node)
                      (values max-right-int max-right-node))))))))))

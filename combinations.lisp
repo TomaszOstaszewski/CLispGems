@@ -15,43 +15,66 @@ A simple combinations generator
 (defstruct comb
   vec
   is-leaf
-  n
-  k)
+  n)
 
 (defstruct k-comb
   vec
   last_j)
 
-(declaim (inline find-next-item))
+(defvar *rec-comb-max-n*)
 
-(defun find-next-item (vec level min max)
-  (declare (fixnum level min max))
-  (declare (type (simple-array signed-byte) vec))
-  (loop for idx of-type fixnum from min to max
-     when (not (find idx vec :end level)) return idx))
+;; Given a vector of numbers and its length
+;; and given to bounds min and max
+;; find a first number between min and max
+;; that does not occur in vector up to given length.
+(defmacro find-next-item (vec level min max)
+  (let ((i (gensym)))
+    `(loop for ,i from ,min to ,max
+        when (not (find ,i ,vec :end ,level)) return ,i)))
 
-(defun rec-f (vec level min max)
-  (declare (fixnum level min max))
-  (declare (type (simple-array signed-byte) vec))
-  (let ((next-item (find-next-item vec level min max)))
+;; Another syntactic sugar macro that 
+;; returns last element of a vector
+(defmacro vec-last (v)
+  (let ((g (gensym)))
+    `(let ((,g ,v))
+       (svref ,g (1- (length ,g))))))
+
+;; Recusrively tries to find a next element
+;; of the combination.
+;; This is probably the least effective method.
+;; What it does, is just a traversal of the combination tree,
+;; sometimes called the binomial tree.
+;; 
+(defun rec-f (vec level min)
+  (let ((next-item (find-next-item vec level min *rec-comb-max-n*)))
     (cond
       (next-item
        (setf (svref vec level) next-item)
        (if (eql (1+ level) (length vec))
            (return-from rec-f vec)
-           (rec-f vec (1+ level) (1+ (the fixnum (svref vec level))) max)))
+           (rec-f vec (1+ level) (1+ (svref vec level)))))
       (t
        (unless (eql level 0)
          (decf level)
-         (rec-f vec level (1+ (the fixnum (svref vec level))) max))))))
+         (rec-f vec level (1+ (svref vec level))))))))
 
 ;;;
 (defun create (n k)
-  (declare (fixnum n k))
   (make-comb
    :vec (make-array k :element-type 'signed-byte)
    :is-leaf nil
    :n (1- n)))
+
+(defun find-next-comb (a-comb)
+  (with-slots (vec is-leaf n) a-comb
+    (let ((*rec-comb-max-n* n))
+      (let ((next-comb
+             (if (every #'(lambda(x) (eql x 0)) vec)
+                 (rec-f vec 0 0) ; initial call, executed when all are zero
+                 (rec-f vec (1- (length vec)) (1+ (vec-last vec)))))) ; normal call, executed most of the time
+        (if (not next-comb)
+            (loop for idx from 0 to (1- (length vec)) do (setf (svref vec idx) 0)))
+        next-comb))))
 
 (defmacro while (a-cond &body body)
   (let ((g1 (gensym)))
@@ -61,28 +84,8 @@ A simple combinations generator
           ,@body
           (go , g1)))))
 
-(defmacro vec-last (v)
-  (let ((g (gensym)))
-    `(let ((,g ,v))
-       (svref ,g (1- (length ,g))))))
-
-(defun find-next-comb (a-comb)
-  (with-slots (vec is-leaf n) a-comb
-    (declare (fixnum n))
-    (declare (type (simple-array signed-byte) vec))
-    (let ((next-comb
-           (if is-leaf
-               (rec-f vec (1- (length vec))
-                      (1+ (the fixnum (vec-last vec))) n)
-               (rec-f vec 0 0 n))))
-      (if next-comb
-          (setf is-leaf t)
-          (setf is-leaf nil))
-      next-comb)))
-
 (defun comb-knuth-ctor (n a-comb)
   (with-slots (vec last_j) a-comb
-    (declare (type (simple-array signed-byte) vec))
     (let ((k (- (length vec) 2)))
       (setf (svref vec k) n
             (svref vec (+ 1 k)) 0
@@ -91,31 +94,24 @@ A simple combinations generator
           ((eql idx k) vec)
         (setf (svref vec idx) idx)))))
 
-
 (defun comb-knuth-create (n k)
-  (declare (fixnum n k))
   (let ((retval (make-k-comb
                  :vec (make-array (+ 2 k) :element-type 'unsigned-byte))))
     (comb-knuth-ctor n retval)
     retval))
 
-(defun l-next-comb (a-k-comb)
+(defun get-comb-lexicographic (a-k-comb)
   (with-slots (vec) a-k-comb
-    (declare (type (simple-array unsigned-byte) vec))
     (subseq vec 0 (- (length vec) 2))))
 
-
-(defun l-find-next-comb (a-k-comb)
+(defun next-comb-lexicographic (a-k-comb)
   (with-slots (vec last_j) a-k-comb
-    (declare (type (simple-array unsigned-byte) vec))
-    (declare (fixnum last_j))
     (let ((k (- (length vec) 2)))
       ;; Search for an index
       ;; that points at the bump in
       ;; the sequence
       (when (< last_j 0)
         (let ((l-j 0))
-          (declare (fixnum l-j))
           (while (and (< l-j k)
                       (eql (the fixnum (svref vec (1+ l-j))) (the fixnum (1+ (the fixnum (svref vec l-j))))))
             (setf (svref vec l-j) l-j)
@@ -123,55 +119,26 @@ A simple combinations generator
           (setf last_j l-j)))
       (when (eql last_j k)
 	(comb-knuth-ctor (svref vec k) a-k-comb)
-	(return-from l-find-next-comb nil))
+	(return-from next-comb-lexicographic nil))
       (incf (the fixnum (svref vec last_j)))
       (decf last_j)
       t)))
 
-#|
-(defun l-find-next-comb (a-k-comb)
-  (with-slots (vec last_j) a-k-comb
-    (declare (type (simple-array unsigned-byte) vec))
-    (declare (fixnum last_j))
-    (let ((k (- (length vec) 2)))
-      ;; Search for an index
-      ;; that points at the bump in
-      ;; the sequence
-      (let ((l-j 0))
-	(declare (fixnum l-j))
-	(while (and (< l-j k)
-		    (eql (the fixnum (svref vec (1+ l-j))) (the fixnum (1+ (the fixnum (svref vec l-j))))))
-	  (setf (svref vec l-j) l-j)
-	  (incf l-j))
-        (when (eql l-j k)
-          (comb-knuth-ctor (svref vec k) a-k-comb)
-          (return-from l-find-next-comb nil))
-        (incf (the fixnum (svref vec l-j)))
-        t))))
-|#
-
 (defun test-comb (n k)
-  (time (let ((x (comb-knuth-create n k)) (count 0))
-	  (declare (fixnum count))
-	  (do ((c (l-find-next-comb x) (l-find-next-comb x)))
-	      ((null c) (prog1 count (pprint x)))
-            (pprint x)
-	    (incf count)))))
+  (time (let ((x (comb-knuth-create n k)) (count 1))
+          (pprint (get-comb-lexicographic x))
+	  (do ((c (next-comb-lexicographic x) (next-comb-lexicographic x)))
+	      ((null c)  count)
+            (pprint (get-comb-lexicographic x))
+	    (incf count))
+          (pprint count))))
 
-(defun append-front-0 (l)
-  (mapcar #'identity l))
+(defun test-comb-silent (n k)
+  (time (let ((x (comb-knuth-create n k)))
+	  (loop for c = (next-comb-lexicographic x) then (next-comb-lexicographic x)
+               for count = 1 then (1+ count)
+            until (null c) finally (pprint count)))))
 
-(defun append-front-1 (l n)
-  (declare (fixnum n))
-  (mapcar #'(lambda(x) (the fixnum (+ (the fixnum (expt 2 n)) (the fixnum x)))) l))
-
-(defun gray-code (n)
-  (declare (fixnum n))
-  (case n
-    (0 nil)
-    (1 (list 0 1))
-    (t (let ((p (gray-code (1- n))))
-         (append p (reverse (append-front-1 p (1- n))))))))
 
 (declaim (inline
 	  knuth-rd-even-odd-helper
@@ -229,7 +196,9 @@ A simple combinations generator
       (incf j)
       (when (knuth-rd-even-odd-helper a-k-comb j)
 	(return-from knuth-R3-even t))
-      (incf j))))
+      (incf j))
+    nil))
+      
 
 (defun knuth-rd-comb (a-k-comb)
   (declare (type (simple-array signed-byte) a-k-comb))
@@ -290,4 +259,19 @@ A simple combinations generator
 		(svref comb-vec j) (1+ (svref comb-vec j)))))
       (incf j))))
 
+
+(defun append-front-0 (l)
+  (mapcar #'identity l))
+
+(defun append-front-1 (l n)
+  (declare (fixnum n))
+  (mapcar #'(lambda(x) (the fixnum (+ (the fixnum (expt 2 n)) (the fixnum x)))) l))
+
+(defun gray-code (n)
+  (declare (fixnum n))
+  (case n
+    (0 nil)
+    (1 (list 0 1))
+    (t (let ((p (gray-code (1- n))))
+         (append p (reverse (append-front-1 p (1- n))))))))
 

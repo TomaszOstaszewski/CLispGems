@@ -99,8 +99,8 @@
     (and (<= 0 m-rhs) (<= 0 c-rhs)
          (or (<= c-rhs m-rhs) (eql 0 m-rhs))
          (or (<= c-lhs m-lhs) (eql 0 m-lhs))
-         (<= m-rhs m)
-         (<= c-rhs c))))
+         (<= m-rhs m) 
+        (<= c-rhs c))))
 
 ;;; Check if a given state have already been visited
 (defun visited-state-p (state states-stack)

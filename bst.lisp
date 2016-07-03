@@ -89,3 +89,14 @@
       (bst-preorder left fn)
       (bst-preorder right fn)
       (funcall fn val))))
+
+(defun bst-height (a-root)
+  (if (null a-root)
+      0
+      (with-slots (left right) a-root
+        (cond
+          ((and (null left) (null right)) 0)
+          ((null left) (1+ (bst-height right)))
+          ((null right) (1+ (bst-height left)))
+          (t
+           (1+ (max (bst-height left) (bst-height right))))))))

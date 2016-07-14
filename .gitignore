@@ -1,4 +1,7 @@
 *.FASL
 *.fasl
 *.lisp-temp
-/little-schemer.lisp~
+/*~
+#*#
+/y-combinator.html
+*.lisp#

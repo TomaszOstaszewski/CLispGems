@@ -1,0 +1,131 @@
+* Y-combinator
+
+** Lisp/Scheme syntax 101
+
+*** Atoms and expressions
+Lisp/Scheme syntax is trivial. Basically, it revolves around _expressions_ and _atoms_. Atoms are either identifiers or numbrs. Expressions are sequences of atoms, separated by one or more spaces, wrapped around with ( and ) characters. Comments are indicated by a one or more *;* characters
+
+*** Examples
+Atoms:
+#+BEGIN_SRC scheme 
+1
+1.1
+alice
+#+END_SRC
+
+Expressions:
+
+#+BEGIN_SRC scheme
+; This one creates a list of two atoms, 1 and 1.1
+(list 1 1.1)
+#+END_SRC
+
+This may look to verbose, but this kind of syntax has the following benefits:
+   * only resereved characters are *(*, *)*, *space* and *;*.\\
+     Compare that with C-like languages that give a special meaning to the following characters *,*, *[*, *]*, *?*, *...*, *:*, */*, *** and so on.
+   * identifiers can use any but those reserved characters.\\
+     Names like ~2-divisible~, ~tree-w/o-min-left-leaf~ or ~prime?~ are not uncommon. You quickly get used to it.
+   * this style, when combined with proper indeting, it really improves readability.
+
+*** More on expressions
+
+First identifier after the opening parent defines what to do with the rest of the expessions. In most of the cases, the first atom is a function name. 
+
+#+BEGIN_SRC scheme
+; This one creates a list of three atoms, 1, 2, 3
+(list 1 2 3)
+; This one creates a list of two lists
+(list (list 1 2) (list 3 4))
+#+END_SRC
+
+In rest of the cases it is either a special operator or a macro. We will skip macros, and briefly touch on special operators. 
+
+**** LISP/Scheme special operators
+
+LISP, by default, has eager evaluation mode. It means, that before it evaluates an expression, it evaluates all its arguments. Therefore, the simplest control structure ~if ... then ... else~ cannot be a function. If it were a function, both ~then~ and ~else~ branches would have been evaluated before ~if~ function been called. 
+
+For this reasons, there is a small number of special operators in each Lisp implementation. For now it is enough to know that ~if ... then ... else~ is a special operator.
+
+*** Functions in LISP
+ 
+
+** How to call a function without using its name?
+
+Let's start with something very innocent, like calculating the length of the list:
+
+#+BEGIN_SRC scheme
+  (define length (lambda(a-list)
+                   (cond 
+                    ((null? a-list) 0)
+                    (else (1+ (length (cdr a-list)))))))
+#+END_SRC
+
+The question is - can we get by without using ~define~ statement. In other words, assuming that the body of the function is anonymous, how can we call this function inside itself? 
+
+We will get to it in a moment, first let's make a couple of assumptions first:
+   - names/functions/operators ~null?~, ~cond/else~, ~1+~ are defined.
+   - there is a special function ~eternity~.
+     This function aborts all computation, you may think of it as a ~java.lang.RuntimeError~ or divide by zero function. Noo worries, we will get rid of it in the process.
+
+* The steps
+
+** Replace ~length~ by its body
+
+When we replace a call to ~length~ by its definition, here's what shows up:
+
+# --#+ATTR_HTML: :textarea t :cols 100
+
+#+BEGIN_SRC scheme -n -r
+  (lambda(a-list)
+    (cond 
+     ((null? a-list) 0)
+     (else (1+ ((lambda(a-list)
+                  (cond 
+                   ((null? a-list) 0)
+                   (else (1+ (length (cdr a-list)))))) (ref:l1)
+                (cdr a-list))))))
+#+END_SRC
+
+Alas, we again refer to itself inside it [[(l1)][here]]. It's time to use the ~eternity~ function:
+
+#+BEGIN_SRC scheme -n -r
+  (lambda(a-list)
+    (cond 
+     ((null? a-list) 0)
+     (else (1+ ((lambda(a-list)
+                  (cond 
+                   ((null? a-list) 0)
+                   (else (1+ (eternity (cdr a-list))))))
+                (cdr a-list))))))
+#+END_SRC
+
+This function can calculate a lenght of an empty list, but nothing else. Therefore, It deserves a name _length_0_. 
+
+In a similiar manner we can create _length_1_:
+
+#+BEGIN_SRC scheme -n -r
+  (lambda(a-list)
+    (cond 
+     ((null? a-list) 0)
+     (else (1+ ((lambda(a-list)
+                  (cond 
+                   ((null? a-list) 0)
+                   (else (1+ ((lambda(a-list)
+                                (cond 
+                                 ((null? a-list) 0)
+                                 (else (1+ (eternity (cdr a-list)))))) (cdr a-list))))))
+                (cdr a-list))))))
+#+END_SRC
+
+This can go forever. The pattern is that we replace each invocation of ~length~ with its own definition, and apply this to the rest of the list. The trouble is that we never can create a function that suits all the lists. 
+
+But we can see a pattern. The can be expressed with this function:
+
+#+BEGIN_SRC scheme -n -r
+  (lambda(do-next)
+    (lambda (a-list)
+      (cond 
+       ((null? a-list) 0)
+       (else (1+ (do-next (cdr a-list)))))))
+#+END_SRC
+
